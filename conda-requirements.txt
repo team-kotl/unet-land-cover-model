@@ -1,0 +1,6 @@
+gdal>=3.6
+rasterio
+pyproj
+shapely
+geopandas
+cudatoolkit
