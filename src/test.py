@@ -28,7 +28,6 @@ def get_sentinelhub_config():
 def validate_coverage(bbox):
     wms_request = WmsRequest(
         data_collection=DataCollection.SENTINEL2_L2A,
-        layer='TRUE-COLOR-S2-L1C',
         bbox=bbox,
         time=("2016-04-08", "2018-12-31"),
         width=100,

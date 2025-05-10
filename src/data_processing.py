@@ -1,6 +1,3 @@
-import os
-import time
-import logging
 import numpy as np
 import rasterio
 from rasterio.transform import from_origin
@@ -18,16 +15,6 @@ from sentinelhub import (
 )
 from config import RAW_IMG_DIR, CRS_EPSG, RESOLUTION, MAX_TILE_SIZE
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("download.log"),
-        logging.StreamHandler()
-    ]
-)
-
 def get_sentinelhub_config():
     config = SHConfig()
     config.sh_client_id = "6e2b6927-5e07-447a-96d6-e3849cc5adf9"
@@ -40,35 +27,47 @@ def download_tile(tile_bbox, time_interval):
     evalscript = """
     //VERSION=3
     function setup() {
-        return {
-            input: ["B02", "B03", "B04", "B08", "CLM"],
-            output: [
-                { id: "default", bands: 4, sampleType: "UINT16" },
-                { id: "cloud_mask", bands: 1, sampleType: "UINT8" }
-            ]
-        };
+    return {
+        input: [{
+        bands: ["B02", "B03", "B04", "B08"],
+        units: "REFLECTANCE"
+        }, {
+        bands: ["SCL"],
+        units: "DN"
+        }],
+        output: [
+        { id: "default", bands: 4, sampleType: "UINT16" },
+        { id: "cloud_mask", bands: 1, sampleType: "UINT8" }
+        ]
+    };
     }
 
     function evaluatePixel(samples) {
-        // Convert L1C to BOA reflectance
-        const reflectance = samples.B08 * 0.0001;
-        
-        return {
-            default: [samples.B02*0.0001, samples.B03*0.0001, 
-                    samples.B04*0.0001, samples.B08*0.0001],
-            cloud_mask: [samples.CLM]
-        };
+    return {
+        default: [
+        samples[0].B02 * 10000,
+        samples[0].B03 * 10000,
+        samples[0].B04 * 10000,
+        samples[0].B08 * 10000
+        ],
+        cloud_mask: [isCloud(samples[1].SCL)]
+    };
+    }
+
+    function isCloud(scl) {
+    // 0: NODATA, 1: SATURATED, 2: DARK_FEATURE, 3: CLOUD_SHADOW, 
+    // 8: CLOUD_MEDIUM_PROBA, 9: CLOUD_HIGH_PROBA, 10: THIN_CIRRUS
+    return [3, 8, 9, 10].includes(scl) ? 1 : 0;
     }
     """
 
     try:
         request = SentinelHubRequest(
-            evalscript=evalscript,
             input_data=[
                 SentinelHubRequest.input_data(
                     data_collection=DataCollection.SENTINEL2_L2A,
                     time_interval=time_interval,
-                    maxcc=0.5,  # More strict cloud filter
+                    maxcc=0.3,  # More strict cloud filter
                 )
             ],
             responses=[
@@ -77,18 +76,20 @@ def download_tile(tile_bbox, time_interval):
             ],
             bbox=tile_bbox,
             size=bbox_to_dimensions(tile_bbox, resolution=RESOLUTION),
-            config=get_sentinelhub_config()
+            config=get_sentinelhub_config(),
+            evalscript=evalscript
         )
 
         # Get and validate response
         response = request.get_data(show_progress=True)
-        logging.debug(f"Raw response: {response}")
         
         # Validate response structure
         if not response or len(response) < 2:
-            raise ValueError(f"Empty response for {tile_bbox} at {time_interval}")
+            raise ValueError(f"Empty response for stuff at {time_interval}")
             
-        image_data, cloud_mask = response[0], response[1]
+        data_list, mask_list = request.get_data(show_progress=True)
+        image_data = data_list[0]      # shape (H, W, 4)
+        cloud_mask = mask_list[0].squeeze()  # shape (H, W) or (1, H, W)
         
         # Validate data content
         if np.all(image_data == 0):
@@ -100,10 +101,10 @@ def download_tile(tile_bbox, time_interval):
         return image_data, cloud_mask
 
     except Exception as e:
-        logging.error(f"Download failed for {tile_bbox}: {str(e)}")
+        print(f"Download failed for stuff: {str(e)}")
         raise
 
-def save_geotiff(data, mask, bbox, image_path, mask_path):
+def save_geotiff(data, mask, bbox, image_path="../data/raw/images_3857", mask_path="../data/raw/masks_3857"):
     """Save image and cloud mask with proper metadata"""
     # Process image data
     if data.ndim == 3 and data.shape[2] == 4:
@@ -189,10 +190,10 @@ def download_region(bbox, time_interval, max_cloud_percent=20):
             min_clouds = cloud_cover
 
     if not best_tile:
-        logging.error("No suitable images found")
+        print("No suitable images found")
         return
 
-    logging.info(f"Best tile: {best_tile['date']} with {best_tile['cloud_cover']}% clouds")
+    print(f"Best tile: {best_tile['date']} with {best_tile['cloud_cover']}% clouds")
 
     # Generate validated tile grid
     tile_size = MAX_TILE_SIZE * RESOLUTION
@@ -212,12 +213,12 @@ def download_region(bbox, time_interval, max_cloud_percent=20):
             try:
                 # Skip invalid coordinates
                 if not is_valid_web_mercator(tile_bbox):
-                    logging.warning(f"Skipping invalid tile {x}_{y}")
+                    print(f"Skipping invalid tile {x}_{y}")
                     continue
 
                 # Check actual data existence
                 if not check_tile_data_exists(tile_bbox, best_tile['date']):
-                    logging.info(f"No data for tile {x}_{y} on {best_tile['date']}")
+                    print(f"No data for tile {x}_{y} on {best_tile['date']}")
                     continue
 
                 # Proceed with download
@@ -225,7 +226,7 @@ def download_region(bbox, time_interval, max_cloud_percent=20):
                 if width < 10 or height < 10:
                     continue
 
-                logging.info(f"Processing tile {x}_{y}")
+                print(f"Processing tile {x}_{y}")
                 image_data, cloud_mask = download_tile(tile_bbox, best_tile['date'])
                 
                 if image_data.size == 0:
@@ -233,14 +234,14 @@ def download_region(bbox, time_interval, max_cloud_percent=20):
 
                 cloud_percent = calculate_cloud_percentage(cloud_mask)
                 if cloud_percent > max_cloud_percent:
-                    logging.warning(f"Skipping tile {x}_{y} with {cloud_percent:.1f}% clouds")
+                    print(f"Skipping tile {x}_{y} with {cloud_percent:.1f}% clouds")
                     continue
 
                 save_geotiff(image_data, cloud_mask, tile_bbox)
-                logging.info(f"Saved tile {x}_{y}")
+                print(f"Saved tile {x}_{y}")
 
             except Exception as e:
-                logging.error(f"Failed tile {x}_{y}: {str(e)}")
+                print(f"Failed tile {x}_{y}: {str(e)}")
                 continue
 
 def is_valid_web_mercator(bbox):
