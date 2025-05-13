@@ -2,3 +2,6 @@
 .conda
 data
 src/__pycache__
+sentinel_downloads
+visualizations
+merged
