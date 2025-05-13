@@ -6,8 +6,8 @@ from matplotlib.colors import ListedColormap
 import warnings
 
 # Configuration
-# TILE_DIR = '../sentinel_downloads'
-TILE_DIR = '../merged'
+TILE_DIR = '../sentinel_downloads'
+# TILE_DIR = '../merged'
 OUTPUT_DIR = '../visualizations'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 

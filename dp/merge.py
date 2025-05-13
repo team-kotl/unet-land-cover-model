@@ -57,6 +57,6 @@ def merge_tiles(tile_dir, output_path, target_crs=None):
 # Usage - specify target CRS if needed
 merge_tiles(
     tile_dir="../sentinel_downloads",
-    output_path="../sentinel_downloads/merged_image.tif",
+    output_path="../merged/merged_image.tif",
     target_crs="EPSG:32651"  # UTM zone for Philippines
 )
