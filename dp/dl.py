@@ -96,33 +96,31 @@ def download_sentinel_data():
     config = SHConfig()
     config.sh_client_id = CLIENT_ID
     config.sh_client_secret = CLIENT_SECRET
-    config.instance_id = INSTANCE_ID
+    config.instance_id = INSTANCE_ID  # Verify if this is required
     
     tiles = split_bbox(AOI_BBOX, RESOLUTION)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    current_date = datetime.date(2015, 12, 31)
-    end_date = datetime.date(2015, 12, 31)
+    current_date = datetime.date(2016, 12, 31)
+    end_date = datetime.date(2018, 12, 31)
     
     while current_date <= end_date:
         month_start = current_date
         month_end = min(end_date, current_date + datetime.timedelta(days=31))
         
         try:
-            all_data = []
             for idx, tile in enumerate(tiles):
                 print(f"Processing tile {idx+1}/{len(tiles)} for {month_start.strftime('%Y-%m')}")
                 tile_data = download_tile(tile, (month_start, month_end), config)
-                if tile_data:
-                    all_data.extend(tile_data)
-            
-            if all_data:
-                filename = f"sentinel_{month_start.strftime('%Y%m')}.tiff"
-                output_path = os.path.join(OUTPUT_DIR, filename)
-                with open(output_path, "wb") as f:
-                    f.write(all_data[0])  # Simplified example - adjust for multiple scenes
-                print(f"Saved {filename}")
-                
+                if tile_data and isinstance(tile_data[0], bytes):
+                    filename = f"sentinel_{month_start.strftime('%Y%m')}_tile_{idx}.tiff"
+                    output_path = os.path.join(OUTPUT_DIR, filename)
+                    with open(output_path, "wb") as f:
+                        f.write(tile_data[0])
+                    print(f"Saved {filename}")
+                else:
+                    print(f"No valid data for tile {idx+1}")
+        
         except Exception as e:
             print(f"Error processing {month_start.strftime('%Y-%m')}: {str(e)}")
         

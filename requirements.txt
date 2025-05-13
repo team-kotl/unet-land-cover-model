@@ -9,3 +9,4 @@ sentinelhub
 scikit-learn
 opencv-python
 albumentations
+earthengine-api

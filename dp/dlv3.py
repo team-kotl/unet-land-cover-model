@@ -12,7 +12,7 @@ ee.Initialize(project='helical-sanctum-451207-m5')
 # Configuration
 AOI = ee.Geometry.BBox(120.464663, 16.179283, 121.659416, 18.537701)
 DATE_RANGE = ('2016-04-08', '2018-12-31')
-MAX_CLOUD_COVER = 10
+MAX_CLOUD_COVER = 30
 EXPORT_SCALE = 10
 MAX_PIXELS = 1e10
 ERROR_MARGIN = 1  # Meters for geometry operations
