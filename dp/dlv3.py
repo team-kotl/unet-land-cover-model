@@ -7,7 +7,7 @@ import math
 
 # Initialize GEE
 ee.Authenticate()
-ee.Initialize(project='helical-sanctum-451207-m5')
+ee.Initialize(project='helical-sanctum-451207-m5') # PROJECT ID HERE
 
 # Configuration
 AOI = ee.Geometry.BBox(120.464663, 16.179283, 121.659416, 18.537701)
