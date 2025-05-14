@@ -5,3 +5,8 @@ src/__pycache__
 sentinel_downloads
 visualizations
 merged
+raw_landsat
+stacked_landsat
+truth
+data
+predict
