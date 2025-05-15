@@ -1,20 +1,13 @@
-### :skull_emoji: XD
+### U-Net Land Cover Model
 
-> Use WSL!
+Uses Sentinel-2 Data.
 
-BigEarth Dataset
+#### Data source (API Based):
 
-`https://bigearth.net/#downloads`
+- https://www.sentinel-hub.com/
+- https://earthengine.google.com/
 
-Corine Dataset
-
-`https://land.copernicus.eu/en/products/corine-land-cover/clc2018#download`
-
-or
-
-`https://drive.google.com/drive/folders/1pCc9sbzemzAgFc_2F08ObK5p0Zvm6pug?usp=sharing`
-
-Do this first before doing anything in order to preserve your personal computer.
+> Use WSL! Highly Recommended!
 
 ```bash
 conda create -n landcover-unet
