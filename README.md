@@ -2,10 +2,14 @@
 
 Uses Sentinel-2 Data.
 
-#### Data source (API Based):
+#### Raw Data source (API Based):
 
 - https://www.sentinel-hub.com/
 - https://earthengine.google.com/
+
+#### Labeled Data source:
+
+- https://www.geoportal.gov.ph/ `See 2020 Land Cover Map of CAR`
 
 > Use WSL! Highly Recommended!
 
