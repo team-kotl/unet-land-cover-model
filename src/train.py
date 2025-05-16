@@ -197,8 +197,5 @@ def main():
     for class_id, iou in enumerate(iou_per_class):
         print(f"  Class {class_id}: {iou:.4f}")
 
-    # Save final model
-    torch.save(model.state_dict(), "../models/unet_landcover.pth")
-
 if __name__ == "__main__":
     main()
