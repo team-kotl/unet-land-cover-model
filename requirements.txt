@@ -13,3 +13,5 @@ opencv-python
 albumentations
 earthengine-api
 gdal
+torchmetrics
+patchify

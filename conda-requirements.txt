@@ -3,4 +3,4 @@ rasterio
 pyproj
 shapely
 geopandas
-cudatoolkit
+patchify
