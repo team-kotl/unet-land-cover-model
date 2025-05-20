@@ -31,21 +31,42 @@ def remap_classes(mask_array):
     return lookup_table[clipped]
 
 def load_and_preprocess(image_path, mask_path):
-    # Load and process data
+    """Load and preprocess Landsat imagery and mask"""
     with rasterio.open(image_path) as src:
-        image = src.read().transpose(1, 2, 0) / 10000.0
+        image = src.read().transpose(1, 2, 0).astype(np.float32)
+        num_channels = image.shape[2]
+        image = image * 0.0000275 - 0.2
+
     with rasterio.open(mask_path) as src:
         mask = remap_classes(src.read(1))
 
-    # Pad images
-    h, w = image.shape[:2]
-    pad_h = (PATCH_SIZE - (h % PATCH_SIZE)) % PATCH_SIZE
-    pad_w = (PATCH_SIZE - (w % PATCH_SIZE)) % PATCH_SIZE
+    # Get original dimensions
+    h_img, w_img = image.shape[:2]
+    h_msk, w_msk = mask.shape[:2]
 
-    image_padded = np.pad(image, ((0, pad_h), (0, pad_w), (0, 0)), mode='reflect')
-    mask_padded = np.pad(mask, ((0, pad_h), (0, pad_w)), mode='constant', constant_values=IGNORE_INDEX)
+    # Calculate required padding for both dimensions
+    def calculate_padding(dim, patch_size):
+        return (patch_size - (dim % patch_size)) % patch_size
 
-    return image_padded, mask_padded
+    # Calculate combined required dimensions
+    required_h = max(h_img, h_msk)
+    required_w = max(w_img, w_msk)
+
+    # Calculate padding to reach required dimensions and make divisible by PATCH_SIZE
+    pad_h = (PATCH_SIZE - (required_h % PATCH_SIZE)) % PATCH_SIZE
+    pad_w = (PATCH_SIZE - (required_w % PATCH_SIZE)) % PATCH_SIZE
+    final_h = required_h + pad_h
+    final_w = required_w + pad_w
+
+    # Pad image and mask to final dimensions
+    image_padded = np.pad(image, 
+                         ((0, final_h - h_img), (0, final_w - w_img), (0, 0)), 
+                         mode='reflect')
+    mask_padded = np.pad(mask, 
+                        ((0, final_h - h_msk), (0, final_w - w_msk)), 
+                        mode='constant', constant_values=IGNORE_INDEX)
+
+    return image_padded, mask_padded, num_channels
 
 class LandCoverDataset(Dataset):
     def __init__(self, images, masks):
@@ -63,35 +84,33 @@ class LandCoverDataset(Dataset):
         return image, mask
 
 def calculate_iou(preds, labels, num_classes, ignore_index):
-    # Filter out ignore index
     mask = labels != ignore_index
     preds = preds[mask]
     labels = labels[mask]
 
-    # Calculate intersection and union for each class
     iou_per_class = []
     for class_id in range(num_classes):
-        true_positive = ((preds == class_id) & (labels == class_id)).sum().item()
-        false_positive = ((preds == class_id) & (labels != class_id)).sum().item()
-        false_negative = ((preds != class_id) & (labels == class_id)).sum().item()
+        tp = ((preds == class_id) & (labels == class_id)).sum().item()
+        fp = ((preds == class_id) & (labels != class_id)).sum().item()
+        fn = ((preds != class_id) & (labels == class_id)).sum().item()
         
-        union = true_positive + false_positive + false_negative
-        iou = true_positive / union if union > 0 else 0.0
+        union = tp + fp + fn
+        iou = tp / union if union > 0 else 0.0
         iou_per_class.append(iou)
     
     return iou_per_class
 
 def main():
-    # Load and process data
-    image, mask = load_and_preprocess("../stacked/merged.tif", "../truth/landcover.tif")
+    # Load data with Landsat preprocessing
+    image, mask, num_channels = load_and_preprocess("../../stacked/merged-landsat.tif", "../../truth/landcover-30m.tif")
     
-    # Verify classes
+    # Validate class mappings
     unique = np.unique(mask)
     print("Unique values after remapping:", unique)
     assert all((0 <= c < NUM_CLASSES) or (c == IGNORE_INDEX) for c in unique), "Invalid class values"
 
-    # Extract patches
-    image_patches = patchify(image, (PATCH_SIZE, PATCH_SIZE, 4), step=PATCH_SIZE).reshape(-1, PATCH_SIZE, PATCH_SIZE, 4)
+    # Extract patches with dynamic channel handling
+    image_patches = patchify(image, (PATCH_SIZE, PATCH_SIZE, num_channels), step=PATCH_SIZE).reshape(-1, PATCH_SIZE, PATCH_SIZE, num_channels)
     mask_patches = patchify(mask, (PATCH_SIZE, PATCH_SIZE), step=PATCH_SIZE).reshape(-1, PATCH_SIZE, PATCH_SIZE)
 
     # Split dataset
@@ -107,12 +126,12 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, pin_memory=True)
 
-    # Initialize model
+    # Initialize model with dynamic in_channels
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = smp.Unet(
         encoder_name="resnet34",
         encoder_weights="imagenet",
-        in_channels=4,
+        in_channels=num_channels,
         classes=NUM_CLASSES
     ).to(device)
 
@@ -151,15 +170,15 @@ def main():
         # Save best model
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            torch.save(model.state_dict(), "../models/best_unet.pth")
+            torch.save(model.state_dict(), "../../models/landsat_model.pth")
 
         print(f"Epoch {epoch+1}/{NUM_EPOCHS} | "
               f"Train Loss: {avg_train_loss:.4f} | "
               f"Val Loss: {avg_val_loss:.4f}")
 
-    # Final test evaluation
+    # Final evaluation
     print("\nStarting final evaluation on test set...")
-    model.load_state_dict(torch.load("../models/best_unet.pth"))
+    model.load_state_dict(torch.load("../../models/landsat_model.pth"))
     model.eval()
     
     test_loss = 0.0
@@ -182,23 +201,17 @@ def main():
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
     
-    # Calculate accuracy
     mask = all_labels != IGNORE_INDEX
     accuracy = (all_preds[mask] == all_labels[mask]).float().mean()
     
-    # Calculate IoU
     iou_per_class = calculate_iou(all_preds, all_labels, NUM_CLASSES, IGNORE_INDEX)
 
-    # Print results
     print(f"\nTest Results:")
     print(f"Loss: {test_loss:.4f}")
     print(f"Overall Accuracy: {accuracy:.4f}")
     print("IoU per class:")
     for class_id, iou in enumerate(iou_per_class):
         print(f"  Class {class_id}: {iou:.4f}")
-
-    # Save final model
-    torch.save(model.state_dict(), "../models/unet_landcover.pth")
 
 if __name__ == "__main__":
     main()

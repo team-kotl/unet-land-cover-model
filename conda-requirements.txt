@@ -3,4 +3,3 @@ rasterio
 pyproj
 shapely
 geopandas
-patchify

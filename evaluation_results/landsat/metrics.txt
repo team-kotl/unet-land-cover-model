@@ -1,0 +1,8 @@
+Overall Accuracy: 0.8958
+
+Class-wise Metrics:
+Class                IoU        F1         Support   
+Water                0.0000     0.0000     18        
+Trees                0.5170     0.6816     11262     
+Built Structures     0.8477     0.9176     48407     
+Rangeland            0.0895     0.1643     2029      
