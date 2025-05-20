@@ -79,20 +79,15 @@ def calculate_metrics(preds, labels, num_classes, ignore_index):
 
 
 def visualize_full_result(image, true_mask, pred_mask, save_path):
-    plt.figure(figsize=(28, 8))  # Slightly wider figure to accommodate legend
-
-    # RGB visualization (Landsat bands 4,3,2)
-    plt.subplot(1, 3, 1)
-    plt.imshow(np.clip(image[..., [3, 2, 1]] * 3, 0, 1))
-    plt.title("Input Image (RGB)")
+    plt.figure(figsize=(28, 8))  
 
     # Ground Truth with legend
-    plt.subplot(1, 3, 2)
+    plt.subplot(1, 3, 1)
     plt.imshow(true_mask, vmin=0, vmax=NUM_CLASSES - 1, cmap="jet")
     plt.title("Ground Truth")
 
     # Prediction with legend
-    plt.subplot(1, 3, 3)
+    plt.subplot(1, 3, 2)
     plt.imshow(pred_mask, vmin=0, vmax=NUM_CLASSES - 1, cmap="jet")
     plt.title("Prediction")
 
@@ -105,7 +100,7 @@ def visualize_full_result(image, true_mask, pred_mask, save_path):
     # Add legend to the figure
     plt.figlegend(
         handles=patches,
-        loc="lower center",
+        loc="center",
         ncol=4,
         bbox_to_anchor=(0.5, -0.05),
         frameon=False,
